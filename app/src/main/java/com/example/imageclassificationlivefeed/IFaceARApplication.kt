@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.imageclassificationlivefeed.di.appModule
 import com.example.imageclassificationlivefeed.di.networkModule
+import com.example.imageclassificationlivefeed.di.storageModule
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.context.startKoin
@@ -25,7 +26,7 @@ class IFaceARApplication: Application() {
         startKoin{
             androidLogger()
             androidContext(this@IFaceARApplication)
-            modules(appModule, networkModule)
+            modules(appModule, networkModule, storageModule)
         }
 
     }

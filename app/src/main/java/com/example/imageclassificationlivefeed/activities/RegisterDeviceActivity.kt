@@ -57,7 +57,7 @@ class RegisterDeviceActivity : AppCompatActivity() {
                         Toast.LENGTH_LONG).show()
 
                     delay(1000)
-//                    startActivity(Intent(this@RegisterDeviceActivity, ))
+                    startActivity(Intent(this@RegisterDeviceActivity, AugmentedRealityActivity::class.java))
                 }
             }
         }

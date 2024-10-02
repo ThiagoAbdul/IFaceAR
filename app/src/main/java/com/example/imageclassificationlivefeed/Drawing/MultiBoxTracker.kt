@@ -54,7 +54,7 @@ class MultiBoxTracker(context: Context) {
         }
         boxPaint.color = Color.RED
         boxPaint.style = Paint.Style.STROKE
-        boxPaint.strokeWidth = 10.0f
+        boxPaint.strokeWidth = 5.0f
         boxPaint.strokeCap = Cap.ROUND
         boxPaint.strokeJoin = Join.ROUND
         boxPaint.strokeMiter = 100f
@@ -74,30 +74,12 @@ class MultiBoxTracker(context: Context) {
     }
 
     @Synchronized
-    fun drawDebug(canvas: Canvas) {
-        val textPaint = Paint()
-        textPaint.color = Color.WHITE
-        textPaint.textSize = 60.0f
-        val boxPaint = Paint()
-        boxPaint.color = Color.RED
-        boxPaint.alpha = 200
-        boxPaint.style = Paint.Style.STROKE
-        for (detection in screenRects) {
-            val rect = detection.second
-            canvas.drawRect(rect, boxPaint)
-            canvas.drawText("" + detection.first, rect.left, rect.top, textPaint)
-            borderedText.drawText(canvas, rect.centerX(), rect.centerY(), "" + detection.first)
-        }
-    }
-
-    @Synchronized
     fun trackResults(results: List<FaceClassifier.Recognition>, timestamp: Long) {
         processResults(results)
     }
 
     @Synchronized
     fun draw(canvas: Canvas) {
-        Log.d("tryDrawRect", "inside draw 2")
         val rotated = sensorOrientation % 180 == 90
         val multiplier = Math.min(
             canvas.height / (if (rotated) frameWidth else frameHeight).toFloat(),
@@ -111,7 +93,6 @@ class MultiBoxTracker(context: Context) {
             sensorOrientation,
             false
         )
-        Log.d("tryDrawRect", "inside draw " + trackedObjects.size)
         for (recognition in trackedObjects) {
             val trackedPos = RectF(recognition.location)
             frameToCanvasMatrix!!.mapRect(trackedPos)
@@ -123,9 +104,11 @@ class MultiBoxTracker(context: Context) {
                 recognition.title,
                 recognition.detectionConfidence
             ) else String.format("%.2f", recognition.detectionConfidence)
-            Log.d("tryDrawRect", labelString)
             borderedText.drawText(
-                canvas, trackedPos.left + cornerSize, trackedPos.top, labelString, boxPaint
+                canvas, trackedPos.left + cornerSize, trackedPos.top - 64, labelString, boxPaint
+            )
+            borderedText.drawText(
+                canvas, trackedPos.left + cornerSize, trackedPos.top, recognition.description, boxPaint
             )
         }
     }
@@ -162,6 +145,7 @@ class MultiBoxTracker(context: Context) {
             trackedRecognition.detectionConfidence = potential.first
             trackedRecognition.location = RectF(potential.second.getLocation())
             trackedRecognition.title = potential.second.title
+            trackedRecognition.description = potential.second.description
             trackedRecognition.color = COLORS[trackedObjects.size]
             trackedObjects.add(trackedRecognition)
             if (trackedObjects.size >= COLORS.size) {
@@ -175,6 +159,8 @@ class MultiBoxTracker(context: Context) {
         var detectionConfidence = 0f
         var color = 0
         var title: String? = null
+        var description: String? = null
+
     }
 
     companion object {

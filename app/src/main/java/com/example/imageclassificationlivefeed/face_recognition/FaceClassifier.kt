@@ -5,13 +5,14 @@ import android.graphics.RectF
 
 /** Generic interface for interacting with different recognition engines.  */
 interface FaceClassifier {
-    fun register(name: String?, recognition: Recognition?)
+    fun updateDataSource()
     fun recognizeImage(bitmap: Bitmap?, getExtra: Boolean): Recognition?
     class Recognition {
         val id: String?
 
         /** Display name for the recognition.  */
         val title: String?
+        var description: String? = null
 
         // A sortable score for how good the recognition is relative to others. Lower should be better.
         val distance: Float?
@@ -22,7 +23,7 @@ interface FaceClassifier {
         var crop: Bitmap?
 
         constructor(
-            id: String?, title: String?, distance: Float?, location: RectF?
+            id: String?, title: String?, description: String?, distance: Float?, location: RectF?
         ) {
             this.id = id
             this.title = title
@@ -30,10 +31,11 @@ interface FaceClassifier {
             this.location = location
             embeeding = null
             crop = null
+            this.description = description
         }
 
         constructor(
-            title: String?, embedding: Any?
+            title: String?, description: String, embedding: Any?
         ) {
             id = null
             this.title = title
@@ -41,14 +43,11 @@ interface FaceClassifier {
             location = null
             embeeding = embedding
             crop = null
+            this.description = description
         }
 
         fun getLocation(): RectF {
             return RectF(location)
-        }
-
-        fun setLocation(location: RectF?) {
-            this.location = location
         }
 
         override fun toString(): String {

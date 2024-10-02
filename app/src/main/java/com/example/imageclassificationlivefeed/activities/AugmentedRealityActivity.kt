@@ -27,17 +27,17 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.Toast
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import com.example.facerecognitionimages.DB.DBHelper
 import com.example.facerecognitionimages.face_recognition.FaceClassifier
 import com.example.facerecognitionimages.face_recognition.TFLiteFaceRecognition
 import com.example.imageclassificationlivefeed.CameraConnectionFragment
 import com.example.imageclassificationlivefeed.Drawing.MultiBoxTracker
+
 import com.example.imageclassificationlivefeed.ImageUtils.convertYUV420ToARGB8888
 import com.example.imageclassificationlivefeed.ImageUtils.getTransformationMatrix
 import com.example.imageclassificationlivefeed.R
+import com.example.imageclassificationlivefeed.data.services.ChangeService
 import com.example.imageclassificationlivefeed.dataStore
 import com.example.imageclassificationlivefeed.userIdKey
 import com.example.objectdetectionlivefeed.Drawing.BorderedText
@@ -47,8 +47,10 @@ import com.google.mlkit.vision.face.Face
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetector
 import com.google.mlkit.vision.face.FaceDetectorOptions
-import kotlinx.coroutines.flow.map
-import java.io.IOException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
 
 class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
     var handler: Handler? = null
@@ -59,32 +61,73 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
     private var borderedText: BorderedText? = null
     private var tracker: MultiBoxTracker? = null
     private var useFacing: Int? = null
-
+    private val changeService: ChangeService by inject()
+    private val dbHelper: DBHelper by inject()
+    private var faceDetectionIsActive = false
+    var pwadId: String? = null
     //TODO delcare face detector
     var detector: FaceDetector? = null
 
     //TODO declare face recognizer
     private var faceClassifier: FaceClassifier? = null
-
+    var registerFace = false
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+
+//        runBlocking {
+//            dataStore.data.collect{
+//                val pwadId = it[userIdKey]
+//                if(pwadId != null){
+//                    try{
+//                        val changes = changeService.getChangesAndApply(pwadId)
+//                        changeService.syncAllChanges(pwadId)
+//                        faceClassifier?.updateDataSource(dbHelper.allFaces)
+//                    }
+//                    catch (exception: Exception){
+//                        Log.d("ERRO", exception.message.toString())
+//                    }
+//                }
+//            }
+//        }
+
+        CoroutineScope(Dispatchers.IO).launch {
+            dataStore.data.collect {
+                pwadId = it[userIdKey]
+            }
+        }
+
 
         setContentView(R.layout.activity_augmented_reality)
         handler = Handler()
 
-        val intent = intent
-        useFacing = intent.getIntExtra(KEY_USE_FACING, CameraCharacteristics.LENS_FACING_BACK)
-
-        //TODO show live camera footage
-        setFragment()
+        useFacing = CameraCharacteristics.LENS_FACING_BACK
 
 
-        //TODO initialize the tracker to draw rectangles
-        tracker = MultiBoxTracker(this)
 
 
         //TODO initalize face detector
         // Multiple object detection in static images
+        initializeFaceRecognition()
+
+        findViewById<View>(R.id.imageView4).setOnClickListener {
+            dbHelper.clear()
+        }
+        findViewById<View>(R.id.imageView3).setOnClickListener { switchCamera() }
+    }
+
+    private fun initializeFaceRecognition(){
+
+        Log.d("TESTE", "A")
+        //TODO show live camera footage
+        setFragment()
+
+        Log.d("TESTE", "B")
+
+        //TODO initialize the tracker to draw rectangles
+        tracker = MultiBoxTracker(this)
+        Log.d("TESTE", "C")
+
         val highAccuracyOpts = FaceDetectorOptions.Builder()
             .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
             .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
@@ -95,13 +138,16 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
 
         //TODO initialize FACE Recognition
         try {
+
             faceClassifier = TFLiteFaceRecognition.create(
                 assets,
                 "facenet.tflite",
                 TF_OD_API_INPUT_SIZE2,
-                false, applicationContext
+                false, dbHelper
             )
-        } catch (e: IOException) {
+        } catch (e: Exception) {
+            Log.d("TESTE", "D")
+
             e.printStackTrace()
             val toast = Toast.makeText(
                 applicationContext, "Classifier could not be initialized", Toast.LENGTH_SHORT
@@ -128,15 +174,20 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
     protected fun setFragment() {
         val manager = getSystemService(CAMERA_SERVICE) as CameraManager
         var cameraId: String? = null
+        Log.d("TESTE", "G")
+
         try {
             cameraId = manager.cameraIdList[(useFacing)!!]
         } catch (e: CameraAccessException) {
             e.printStackTrace()
         }
+        catch (e: Exception){
+            Log.d("TESTE", "F")
+        }
         val fragment: Fragment
         val camera2Fragment = CameraConnectionFragment.newInstance(
             object : CameraConnectionFragment.ConnectionCallback {
-                override fun onPreviewSizeChosen(size: Size?, rotation: Int) {
+                override fun onPreviewSizeChosen(size: Size?, cameraRotation: Int) {
                     previewHeight = size!!.height
                     previewWidth = size.width
                     val textSizePx = TypedValue.applyDimension(
@@ -147,7 +198,7 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
                     val cropSize = CROP_SIZE
                     previewWidth = size.width
                     previewHeight = size.height
-                    sensorOrientation = rotation - screenOrientation
+                    sensorOrientation = cameraRotation - screenOrientation
                     rgbFrameBitmap =
                         Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888)
                     croppedBitmap = Bitmap.createBitmap(cropSize, cropSize, Bitmap.Config.ARGB_8888)
@@ -177,7 +228,7 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
         )
         camera2Fragment.setCamera(cameraId)
         fragment = camera2Fragment
-        fragmentManager.beginTransaction().replace(R.id.container, fragment).commit()
+        fragmentManager.beginTransaction().replace(R.id.ar_camera, fragment).commit()
     }
 
     //TODO getting frames of live camera footage and passing them to model
@@ -225,9 +276,10 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
                 image.close()
                 isProcessingFrame = false
             }
-            performFaceDetection()
+
+                performFaceDetection()
         } catch (e: Exception) {
-            Log.d("tryError", e.message + "abc ")
+            Log.d("TESTE", "G" + " " + e.message.toString())
             return
         }
     }
@@ -256,6 +308,8 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
 
     //TODO Perform face detection
     fun performFaceDetection() {
+
+        Log.d("TESTE", "E")
         imageConverter!!.run()
         rgbFrameBitmap!!.setPixels(rgbBytes!!, 0, previewWidth, 0, 0, previewWidth, previewHeight)
         val canvas = Canvas(croppedBitmap!!)
@@ -269,7 +323,7 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
                         val bounds = face.boundingBox
                         performFaceRecognition(face)
                     }
-
+                    registerFace = false
                     tracker!!.trackResults(mappedRecognitions!!, 10)
                     trackingOverlay!!.postInvalidate()
                     postInferenceCallback!!.run()
@@ -283,6 +337,8 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
 
     //TODO perform face recognition
     fun performFaceRecognition(face: Face) {
+        if(!faceDetectionIsActive)
+            return
         //TODO crop the face
         val bounds: Rect = face.boundingBox
         if (bounds.top < 0) {
@@ -305,14 +361,16 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
             bounds.height()
         )
         crop = Bitmap.createScaledBitmap(crop, TF_OD_API_INPUT_SIZE2, TF_OD_API_INPUT_SIZE2, false)
-        val result: FaceClassifier.Recognition? = faceClassifier!!.recognizeImage(crop, false)
+        val result: FaceClassifier.Recognition? = faceClassifier!!.recognizeImage(crop, registerFace)
         var title: String = "Unknown"
         var confidence = 0f
+        var description: String? = ""
         if (result != null) {
 
-            if (result.distance!! < 0.75f) {
+            if (result.distance!! < 0.8f) {
                 confidence = result.distance!!
                 title = result.title.toString()
+                description = result.description
             }
 
         }
@@ -327,6 +385,7 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
                 FaceClassifier.Recognition(
                     face.trackingId.toString() + "",
                     title,
+                    description,
                     confidence,
                     location
                 )
@@ -337,41 +396,49 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
     override fun onDestroy() {
         super.onDestroy()
         detector!!.close()
+//        applicationContext.deleteDatabase(DBHelper.DATABASE_NAME)
+//        CoroutineScope(Dispatchers.Main).launch {
+//            dataStore.edit {
+//                it.remove(userIdKey)
+//            }
+//        }
+
     }
 
-    //TODO register face dialogue
-    private fun registerFaceDialogue(croppedFace: Bitmap, rec: FaceClassifier.Recognition?) {
-        val dialog = Dialog(this)
-        dialog.setContentView(R.layout.register_face_dialogue)
-        val ivFace = dialog.findViewById<ImageView>(R.id.dlg_image)
-        val nameEd = dialog.findViewById<EditText>(R.id.dlg_input)
-        val register = dialog.findViewById<Button>(R.id.button2)
-        ivFace.setImageBitmap(croppedFace)
-        register.setOnClickListener(View.OnClickListener {
-            val name = nameEd.text.toString()
-            if (name.isEmpty()) {
-                nameEd.error = "Enter Name"
-                return@OnClickListener
-            }
-            faceClassifier!!.register(name, rec)
-            Toast.makeText(this@AugmentedRealityActivity, "Face Registered Successfully", Toast.LENGTH_SHORT)
-                .show()
-            dialog.dismiss()
-        })
-        dialog.show()
-    }
 
     //TODO switch camera
     fun switchCamera() {
-        val intent = intent
-        useFacing = if (useFacing == CameraCharacteristics.LENS_FACING_FRONT) {
-            CameraCharacteristics.LENS_FACING_BACK
-        } else {
-            CameraCharacteristics.LENS_FACING_FRONT
+//        val intent = intent
+//        useFacing = if (useFacing == CameraCharacteristics.LENS_FACING_FRONT) {
+//            CameraCharacteristics.LENS_FACING_BACK
+//        } else {
+//            CameraCharacteristics.LENS_FACING_FRONT
+//        }
+//        intent.putExtra(KEY_USE_FACING, useFacing)
+//        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+//        restartWith(intent)
+        this.faceDetectionIsActive = false
+        CoroutineScope(Dispatchers.IO).launch {
+            dataStore.data.collect{
+                if(pwadId != null){
+                    try{
+                        val changes = changeService.getChangesAndApply(pwadId!!)
+                        if(changes){
+                            changeService.syncAllChanges(pwadId!!)
+                            faceClassifier?.updateDataSource()
+
+                        }
+                    }
+                    catch (exception: Exception){
+                        Log.d("ERRO", exception.message.toString())
+                    }
+
+                }
+                faceDetectionIsActive = true
+            }
+
         }
-        intent.putExtra(KEY_USE_FACING, useFacing)
-        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-        restartWith(intent)
+
     }
 
     private fun restartWith(intent: Intent) {

@@ -8,6 +8,7 @@ import android.util.Log
 import android.util.Pair
 import com.example.facerecognitionimages.DB.DBHelper
 import com.example.facerecognitionimages.face_recognition.FaceClassifier.Recognition
+import com.example.imageclassificationlivefeed.Drawing.BoxModel
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
 import java.io.IOException
@@ -16,7 +17,7 @@ import java.nio.ByteOrder
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 
-class TFLiteFaceRecognition private constructor(ctx: Context) : FaceClassifier {
+class TFLiteFaceRecognition private constructor(private val dbHelper: DBHelper) : FaceClassifier {
     private var isModelQuantized = false
 
     // Config values.
@@ -25,41 +26,44 @@ class TFLiteFaceRecognition private constructor(ctx: Context) : FaceClassifier {
     private lateinit var embeedings: Array<FloatArray>
     private var imgData: ByteBuffer? = null
     private var tfLite: Interpreter? = null
-    var dbHelper: DBHelper
-    var registered = HashMap<String?, Recognition>()
-    override fun register(name: String?, rec: Recognition?) {
-        dbHelper.insertFace(name, rec!!.embeeding!!)
-        registered.put(name, rec);
-    }
+    private var registered: List<Recognition> = mutableListOf()
 
     init {
-        dbHelper = DBHelper(ctx)
-        registered = dbHelper.allFaces
-        registered.forEach { t, u ->
-            Log.d("tryRes",t+"   abc  ")
-        }
+        registered = dbHelper.getAllFaces()
+
+    }
+
+    override fun updateDataSource() {
+        Log.d("TESTE", "X")
+        registered = dbHelper.getAllFaces()
     }
 
     //TODO  looks for the nearest embeeding in the dataset
     // and retrurns the pair <id, distance>
-    private fun findNearest(emb: FloatArray): Pair<String?, Float>? {
-        var ret: Pair<String?, Float>? = null
-        //Log.d("tryRes","Above= "+ ret!!.first+"   "+ret!!.second)
-        for ((name, value) in registered) {
+    private fun findNearest(emb: FloatArray): BoxModel? {
+        var minorDistance: Float? = null
+        var recognition: Recognition? = null
+        for (value in registered) {
             val knownEmb = (value.embeeding as Array<FloatArray>?)!![0]
-            Log.d("tryResiN",name+"   "+knownEmb.contentToString());
             var distance = 0f
             for (i in emb.indices) {
                 val diff = emb[i] - knownEmb[i]
                 distance += diff * diff
+
             }
             distance = Math.sqrt(distance.toDouble()).toFloat()
-            if (ret == null || distance < ret.second) {
-                ret = Pair(name, distance)
+
+            if (minorDistance == null || distance < minorDistance) {
+                recognition = value
+                minorDistance = distance
             }
+
+            if(distance < .75)
+                break
         }
-        Log.d("tryRes","Below= "+ ret!!.first+"   "+ret!!.second)
-        return ret
+        if(minorDistance == null)
+            return null
+        return BoxModel(recognition?.title!!, recognition.description!!, minorDistance)
     }
 
     //TODO TAKE INPUT IMAGE AND RETURN RECOGNITIONS
@@ -86,22 +90,24 @@ class TFLiteFaceRecognition private constructor(ctx: Context) : FaceClassifier {
         outputMap[0] = embeedings
         // Run the inference call.
         tfLite!!.runForMultipleInputsOutputs(inputArray, outputMap)
-        Log.d("tryResr",embeedings[0].contentToString())
         var distance = Float.MAX_VALUE
         val id = "0"
         var label: String? = "?"
+        var description = ""
         if (registered.size > 0) {
             val nearest = findNearest(embeedings[0])
             if (nearest != null) {
-                val name = nearest.first
-                label = name
-                distance = nearest.second
+
+                label = nearest.name
+                description = nearest.description
+                distance = nearest.distance
             }
         }
 
         val rec = Recognition(
             id,
             label,
+            description,
             distance,
             RectF()
         )
@@ -138,9 +144,9 @@ class TFLiteFaceRecognition private constructor(ctx: Context) : FaceClassifier {
             assetManager: AssetManager,
             modelFilename: String,
             inputSize: Int,
-            isQuantized: Boolean, ctx: Context
+            isQuantized: Boolean, dbHelper: DBHelper
         ): FaceClassifier {
-            val d = TFLiteFaceRecognition(ctx)
+            val d = TFLiteFaceRecognition(dbHelper)
             d.inputSize = inputSize
             try {
                 d.tfLite = Interpreter(loadModelFile(assetManager, modelFilename))
