@@ -101,7 +101,7 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
         setContentView(R.layout.activity_augmented_reality)
         handler = Handler()
 
-        useFacing = CameraCharacteristics.LENS_FACING_BACK
+        useFacing = CameraCharacteristics.LENS_FACING_FRONT
 
 
 
@@ -118,11 +118,8 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
 
     private fun initializeFaceRecognition(){
 
-        Log.d("TESTE", "A")
-        //TODO show live camera footage
         setFragment()
 
-        Log.d("TESTE", "B")
 
         //TODO initialize the tracker to draw rectangles
         tracker = MultiBoxTracker(this)
@@ -146,7 +143,6 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
                 false, dbHelper
             )
         } catch (e: Exception) {
-            Log.d("TESTE", "D")
 
             e.printStackTrace()
             val toast = Toast.makeText(
@@ -174,7 +170,6 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
     protected fun setFragment() {
         val manager = getSystemService(CAMERA_SERVICE) as CameraManager
         var cameraId: String? = null
-        Log.d("TESTE", "G")
 
         try {
             cameraId = manager.cameraIdList[(useFacing)!!]
@@ -320,7 +315,6 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
             detector!!.process(image)
                 .addOnSuccessListener { faces ->
                     for (face: Face in faces) {
-                        val bounds = face.boundingBox
                         performFaceRecognition(face)
                     }
                     registerFace = false
