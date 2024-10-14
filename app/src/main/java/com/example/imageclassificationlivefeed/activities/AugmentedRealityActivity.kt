@@ -110,9 +110,6 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
         // Multiple object detection in static images
         initializeFaceRecognition()
 
-        findViewById<View>(R.id.imageView4).setOnClickListener {
-            dbHelper.clear()
-        }
         findViewById<View>(R.id.imageView3).setOnClickListener { switchCamera() }
     }
 
@@ -315,7 +312,7 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
             detector!!.process(image)
                 .addOnSuccessListener { faces ->
                     for (face: Face in faces) {
-                        performFaceRecognition(face)
+                         performFaceRecognition(face)
                     }
                     registerFace = false
                     tracker!!.trackResults(mappedRecognitions!!, 10)

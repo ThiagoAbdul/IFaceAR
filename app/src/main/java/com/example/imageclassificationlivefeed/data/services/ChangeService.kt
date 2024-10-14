@@ -15,7 +15,6 @@ import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.statement.HttpResponse
 import kotlinx.serialization.json.Json
-import org.koin.android.ext.android.inject
 
 class ChangeService(
     private val http: HttpClient,
@@ -25,7 +24,7 @@ class ChangeService(
     private val jsonSerializer: Json = Json{ ignoreUnknownKeys = true }
 
     suspend fun getChangesAndApply(pwadId: String) : Boolean{
-        val changes = getChanges(pwadId)
+        val changes = getRemainingChanges(pwadId)
         val hasChanges  = changes.isNotEmpty()
         if(!hasChanges)
             return false
@@ -45,7 +44,34 @@ class ChangeService(
 
     }
 
-    private suspend fun getChanges(pwadId: String) : List<ChangeResponse> {
+    suspend fun getAllChangesAndApply(pwadId: String) : Boolean{
+        val changes = getAllChanges(pwadId)
+        val hasChanges  = changes.isNotEmpty()
+        if(!hasChanges)
+            return false
+        changes.filter {
+            it.entity == AppEntities.KNOWN_PERSON
+        }.forEach {
+            applyChange(it)
+        }
+
+        changes.filter {
+            it.entity == AppEntities.IMAGE
+        }.forEach {
+            applyChange(it)
+        }
+
+        return true
+
+    }
+
+
+    private suspend fun getAllChanges(pwadId: String) : List<ChangeResponse> {
+        return http.get("${BASE_RUL}/Pwad/${pwadId}/All").body()
+    }
+
+
+    private suspend fun getRemainingChanges(pwadId: String) : List<ChangeResponse> {
         return http.get("${BASE_RUL}/Pwad/${pwadId}").body()
     }
 
@@ -93,7 +119,4 @@ class ChangeService(
         return http.post(BASE_RUL + "/Pwad/${pwadId}/SyncAll")
     }
 
-    suspend fun syncAll(pwadId: String) : HttpResponse{
-        return http.post(BASE_RUL + "Pwad/${pwadId}/SyncAll")
-    }
 }

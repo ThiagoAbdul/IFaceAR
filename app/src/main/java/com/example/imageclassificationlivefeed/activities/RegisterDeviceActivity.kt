@@ -11,6 +11,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.datastore.preferences.core.edit
 import com.example.imageclassificationlivefeed.R
+import com.example.imageclassificationlivefeed.data.services.ChangeService
 import com.example.imageclassificationlivefeed.data.services.PwadService
 import com.example.imageclassificationlivefeed.dataStore
 import com.example.imageclassificationlivefeed.userIdKey
@@ -25,7 +26,7 @@ class RegisterDeviceActivity : AppCompatActivity() {
     private lateinit var etRegisterDevice: EditText
     private lateinit var btnRegisterDevice: Button
     private val pwadService: PwadService by inject()
-
+    private val changeService: ChangeService by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,10 +54,13 @@ class RegisterDeviceActivity : AppCompatActivity() {
                     }
 
                     Toast.makeText(this@RegisterDeviceActivity,
-                        "Device registered",
+                        "Dispositivo registrado! Sincronizando dados...",
                         Toast.LENGTH_LONG).show()
-
+                    changeService.getAllChangesAndApply(pwadId = response.id)
                     delay(1000)
+                    Toast.makeText(this@RegisterDeviceActivity,
+                        "Dados sincronizados",
+                        Toast.LENGTH_LONG).show()
                     startActivity(Intent(this@RegisterDeviceActivity, AugmentedRealityActivity::class.java))
                 }
             }

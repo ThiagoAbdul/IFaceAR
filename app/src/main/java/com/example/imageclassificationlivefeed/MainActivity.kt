@@ -63,7 +63,7 @@ val userIdKey = stringPreferencesKey("user_id")
 class MainActivity : AppCompatActivity() {
 
 
-//    private val dbHelper:DBHelper by inject()
+    private val dbHelper:DBHelper by inject()
     private val changeService: ChangeService by inject ()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -122,6 +122,7 @@ class MainActivity : AppCompatActivity() {
             CoroutineScope(Dispatchers.IO).launch {
                 dataStore.edit {
                     it.remove(userIdKey)
+                    dbHelper.clear()
                 }
             }
         }

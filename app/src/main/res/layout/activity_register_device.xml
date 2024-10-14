@@ -15,7 +15,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginTop="20dp"
-        android:text="Enter the careful token"
+        android:text="Insira o token de vinculação"
         android:textSize="24sp" />
 
     <EditText
@@ -26,7 +26,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginTop="32dp"
-        android:hint="Paste token here"/>
+        android:hint="Cole o token aqui"/>
 
     <Button
         android:id="@+id/btn_register_device"
@@ -36,7 +36,7 @@
         app:layout_constraintTop_toBottomOf="@id/et_register_device"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:text="Register"
+        android:text="Cadastrar"
         android:textSize="20sp"
         android:textColor="@color/white"
         android:layout_marginTop="32dp"/>
