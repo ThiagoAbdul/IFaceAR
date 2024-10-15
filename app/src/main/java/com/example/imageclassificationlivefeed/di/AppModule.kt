@@ -1,6 +1,5 @@
 package com.example.imageclassificationlivefeed.di
 
-import androidx.room.Room
 import com.example.facerecognitionimages.DB.DBHelper
 import com.example.imageclassificationlivefeed.data.repositories.ImageRepository
 import com.example.imageclassificationlivefeed.data.repositories.KnownPersonRepository
