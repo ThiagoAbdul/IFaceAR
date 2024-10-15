@@ -1,62 +1,37 @@
 package com.example.imageclassificationlivefeed
 
 import android.Manifest
-import android.app.Dialog
-import android.app.Fragment
+import android.content.BroadcastReceiver
+import android.content.ComponentName
+import android.content.ContentValues.TAG
+import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Matrix
-import android.graphics.Rect
-import android.graphics.RectF
-import android.graphics.Typeface
-import android.hardware.camera2.CameraAccessException
-import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraManager
-import android.media.Image.Plane
-import android.media.ImageReader
-import android.media.ImageReader.OnImageAvailableListener
-import android.os.Build
+import android.location.Geocoder
+import android.location.Location
 import android.os.Bundle
-import android.os.Handler
+import android.os.IBinder
 import android.util.Log
-import android.util.Size
-import android.util.TypedValue
-import android.view.Surface
 import android.view.View
 import android.widget.Button
-import android.widget.EditText
-import android.widget.ImageView
-import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.example.facerecognitionimages.DB.DBHelper
-import com.example.facerecognitionimages.face_recognition.FaceClassifier
-import com.example.facerecognitionimages.face_recognition.TFLiteFaceRecognition
-import com.example.imageclassificationlivefeed.Drawing.MultiBoxTracker
 
-import com.example.imageclassificationlivefeed.ImageUtils.convertYUV420ToARGB8888
-import com.example.imageclassificationlivefeed.ImageUtils.getTransformationMatrix
 import com.example.imageclassificationlivefeed.activities.AugmentedRealityActivity
 import com.example.imageclassificationlivefeed.activities.RegisterDeviceActivity
 import com.example.imageclassificationlivefeed.data.services.ChangeService
-import com.example.objectdetectionlivefeed.Drawing.BorderedText
-import com.example.objectdetectionlivefeed.Drawing.OverlayView
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.face.Face
-import com.google.mlkit.vision.face.FaceDetection
-import com.google.mlkit.vision.face.FaceDetector
-import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
-import java.io.IOException
+import java.util.Locale
 
 val userIdKey = stringPreferencesKey("user_id")
 
@@ -65,9 +40,46 @@ class MainActivity : AppCompatActivity() {
 
     private val dbHelper:DBHelper by inject()
     private val changeService: ChangeService by inject ()
+    private var serviceBound = false
+    private var isTracking = false
+    private var service: LocationService? = null
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    private fun getAddressFromLocation(latitude: Double, longitude: Double, context: Context): String {
+        val geocoder = Geocoder(context, Locale.getDefault())
+        return try {
+            val addresses = geocoder.getFromLocation(latitude, longitude, 1)
+            if (addresses != null && addresses.isNotEmpty()) {
+                val address = addresses[0]
+                val city = address.locality ?: "Cidade não encontrada"
+                val neighborhood = address.subLocality ?: "Bairro não encontrado"
+                "$neighborhood, $city"
+            } else {
+                "Endereço não encontrado"
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            "Erro ao buscar endereço"
+        }
+    }
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            Log.d(TAG, "Service Connected")
+            val localBinder = binder as LocationService.LocalBinder
+            service = localBinder.service
+            serviceBound = true
+        }
+
+        override fun onServiceDisconnected(p0: ComponentName?) {
+            Log.d(TAG, "Service Disconnected")
+            serviceBound = false
+        }
+    }
+
+        override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        service?.subscribeToLocationUpdates()
+        isTracking = true
 
         //TODO handling permissions
         if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED || checkSelfPermission(
@@ -128,7 +140,42 @@ class MainActivity : AppCompatActivity() {
         }
 
     }
+    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+        if (isGranted) {
+            // Permissão concedida
+            Log.d(TAG, "Location Permission Granted")
+            service?.subscribeToLocationUpdates()
+        } else {
+            // Permissão negada
+           // Snackbar.make(findViewById(R.id.activity_main), "Permissão de localização negada", Snackbar.LENGTH_SHORT).show()
+        }
+    }
 
+    // Chame este método para solicitar permissão
+    private fun requestLocationPermission() {
+        requestPermissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+    private val locationReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            Log.d(TAG, "Broadcast Received")
+            val location = intent?.getParcelableExtra<Location>(LocationService.EXTRA_LOCATION)
 
+            if (location != null) {
+                val latitude = location.latitude
+                val longitude = location.longitude
+
+                runOnUiThread {
+                    Log.d(TAG, "Lat: $latitude, Long: $longitude")
+
+                    Log.d(TAG, "Update complete")
+                }
+            } else {
+                Log.d(TAG, "No location found in the intent")
+            }
+        }
+    }
+    companion object {
+        private const val TAG = "MainActivity"
+    }
 
 }
