@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.location.Geocoder
@@ -19,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.example.facerecognitionimages.DB.DBHelper
 
 import com.example.imageclassificationlivefeed.activities.AugmentedRealityActivity
@@ -82,16 +84,16 @@ class MainActivity : AppCompatActivity() {
         isTracking = true
 
         //TODO handling permissions
+
         if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED || checkSelfPermission(
-                Manifest.permission.WRITE_EXTERNAL_STORAGE
+                (Manifest.permission.WRITE_EXTERNAL_STORAGE)) == PackageManager.PERMISSION_DENIED ||
+                (checkSelfPermission (Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_DENIED
             )
-            == PackageManager.PERMISSION_DENIED
         ) {
             val permission =
-                arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.ACCESS_FINE_LOCATION)
             requestPermissions(permission, 121)
         }
-
 
         val flow: Flow<String?> = dataStore.data.map {
             it[userIdKey]
@@ -140,21 +142,7 @@ class MainActivity : AppCompatActivity() {
         }
 
     }
-    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
-        if (isGranted) {
-            // Permissão concedida
-            Log.d(TAG, "Location Permission Granted")
-            service?.subscribeToLocationUpdates()
-        } else {
-            // Permissão negada
-           // Snackbar.make(findViewById(R.id.activity_main), "Permissão de localização negada", Snackbar.LENGTH_SHORT).show()
-        }
-    }
 
-    // Chame este método para solicitar permissão
-    private fun requestLocationPermission() {
-        requestPermissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
-    }
     private val locationReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             Log.d(TAG, "Broadcast Received")
@@ -166,7 +154,6 @@ class MainActivity : AppCompatActivity() {
 
                 runOnUiThread {
                     Log.d(TAG, "Lat: $latitude, Long: $longitude")
-
                     Log.d(TAG, "Update complete")
                 }
             } else {
@@ -174,8 +161,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-    companion object {
-        private const val TAG = "MainActivity"
+    override fun onStart() {
+        super.onStart()
+        // Registra o receiver
+        val filter = IntentFilter(LocationService.LOCATION_BROADCAST)
+        LocalBroadcastManager.getInstance(this).registerReceiver(locationReceiver, filter)
+        Log.d(TAG, "BroadcastReceiver Registered")
+
+        // Vincula o serviço
+        val intent = Intent(this, LocationService::class.java)
+        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
     }
 
 }
