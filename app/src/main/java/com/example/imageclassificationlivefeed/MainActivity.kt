@@ -46,6 +46,20 @@ class MainActivity : AppCompatActivity() {
     private var isTracking = false
     private var service: LocationService? = null
 
+    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+        if (isGranted) {
+            // Permissão concedida, inicie a captura de localização
+            Log.d(TAG, "Location Permission Granted")
+            service?.subscribeToLocationUpdates()
+            isTracking = true // Atualiza o estado de rastreamento
+        } else {
+            // Permissão negada
+            //Snackbar.make(findViewById(R.id.activity_main), "Permissão de localização negada", Snackbar.LENGTH_SHORT).show()
+        }
+    }
+    private fun requestLocationPermission() {
+        requestPermissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+    }
     private fun getAddressFromLocation(latitude: Double, longitude: Double, context: Context): String {
         val geocoder = Geocoder(context, Locale.getDefault())
         return try {
@@ -63,16 +77,42 @@ class MainActivity : AppCompatActivity() {
             "Erro ao buscar endereço"
         }
     }
+    private val locationReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            Log.d(TAG, "Broadcast Received")
+            val location = intent?.getParcelableExtra<Location>(LocationService.EXTRA_LOCATION)
+
+            if (location != null) {
+                val latitude = location.latitude
+                val longitude = location.longitude
+                Log.d(TAG, "Attempting to update TextView with Location: Lat: $latitude, Long: $longitude")
+
+                runOnUiThread {
+                    Log.d(TAG, "Lat: $latitude, Long: $longitude")
+                    Log.d(TAG, "Update complete")
+                }
+            } else {
+                Log.d(TAG, "No location found in the intent")
+            }
+        }
+    }
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             Log.d(TAG, "Service Connected")
             val localBinder = binder as LocationService.LocalBinder
             service = localBinder.service
+            service?.subscribeToLocationUpdates()
             serviceBound = true
+
+            // Inicia automaticamente a captura de localização
+            if (!isTracking) {
+                service?.subscribeToLocationUpdates()
+                isTracking = true
+            }
         }
 
-        override fun onServiceDisconnected(p0: ComponentName?) {
+        override fun onServiceDisconnected(name: ComponentName?) {
             Log.d(TAG, "Service Disconnected")
             serviceBound = false
         }
@@ -80,18 +120,21 @@ class MainActivity : AppCompatActivity() {
 
         override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        service?.subscribeToLocationUpdates()
+
         isTracking = true
+        requestLocationPermission()
+        Log.d(TAG, "Subscribed Sucessfully")
 
         //TODO handling permissions
 
         if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED || checkSelfPermission(
                 (Manifest.permission.WRITE_EXTERNAL_STORAGE)) == PackageManager.PERMISSION_DENIED ||
-                (checkSelfPermission (Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_DENIED
-            )
+                (checkSelfPermission (Manifest.permission.ACCESS_FINE_LOCATION)) == PackageManager.PERMISSION_DENIED||
+                (checkSelfPermission (Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_DENIED)
         ) {
             val permission =
-                arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.ACCESS_FINE_LOCATION)
+                arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION)
             requestPermissions(permission, 121)
         }
 
@@ -141,25 +184,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    }
-
-    private val locationReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            Log.d(TAG, "Broadcast Received")
-            val location = intent?.getParcelableExtra<Location>(LocationService.EXTRA_LOCATION)
-
-            if (location != null) {
-                val latitude = location.latitude
-                val longitude = location.longitude
-
-                runOnUiThread {
-                    Log.d(TAG, "Lat: $latitude, Long: $longitude")
-                    Log.d(TAG, "Update complete")
-                }
-            } else {
-                Log.d(TAG, "No location found in the intent")
-            }
-        }
     }
     override fun onStart() {
         super.onStart()
