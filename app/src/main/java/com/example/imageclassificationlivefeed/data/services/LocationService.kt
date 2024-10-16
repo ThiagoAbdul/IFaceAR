@@ -1,4 +1,4 @@
-package com.example.imageclassificationlivefeed
+package com.example.imageclassificationlivefeed.data.services
 
 import android.annotation.SuppressLint
 import android.app.Notification
@@ -15,13 +15,31 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.util.Supplier
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.example.imageclassificationlivefeed.MainActivity
+import com.example.imageclassificationlivefeed.R
+import com.example.imageclassificationlivefeed.data.models.PwadLocationRequest
+import com.example.imageclassificationlivefeed.dataStore
+import com.example.imageclassificationlivefeed.locationApiUrl
+import com.example.imageclassificationlivefeed.toText
 import com.google.android.gms.location.*
 import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.Priority.*
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
 
 // Classe de serviço para localização em tempo real, em foreground e background
 class LocationService : Service() {
-
+    private val http: HttpClient by inject()
     private var configurationChange = false
     private var serviceRunningInForeground = false
     private val localBinder = LocalBinder()
@@ -31,29 +49,42 @@ class LocationService : Service() {
     private lateinit var locationRequest: LocationRequest
     private lateinit var locationCallback: LocationCallback
     private var currentLocation: Location? = null
+    var pwadId: String? = null
+
+
+    private suspend fun sendLocation(lat: Double, lon: Double){
+        val url = locationApiUrl
+        if(pwadId != null) {
+            val request = PwadLocationRequest(pwadId!!, lat, lon)
+            http.post(url){
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "onCreate()")
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
 
         // Configuração da requisição de localização
-        locationRequest = LocationRequest.create().apply {
-            interval = 10000 // Tempo entre atualizações (10 segundos)
-            fastestInterval = 5000 // Intervalo mais rápido para receber atualizações
-            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-        }
+        locationRequest = LocationRequest.Builder(PRIORITY_HIGH_ACCURACY, 60_000)
+            .setMinUpdateIntervalMillis(5_000)
+            .build()
+
+
 
         // Callback para quando uma nova localização é recebida
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 super.onLocationResult(locationResult)
                 for (location in locationResult.locations) {
-                    val intent = Intent(LOCATION_BROADCAST)
-                    intent.putExtra(EXTRA_LOCATION, location)
-                    LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
+                    CoroutineScope(Dispatchers.IO).launch {
+                        sendLocation(location.latitude, location.longitude)
+
+                    }
                 }
             }
 
@@ -73,7 +104,7 @@ class LocationService : Service() {
     }
 
     override fun onBind(intent: Intent): IBinder {
-        Log.d(TAG, "onBind()")
+        pwadId = intent.extras?.getString("pwad")
         stopForeground(true)
         serviceRunningInForeground = false
         configurationChange = false
@@ -81,7 +112,6 @@ class LocationService : Service() {
     }
 
     override fun onRebind(intent: Intent) {
-        Log.d(TAG, "onRebind()")
         stopForeground(true)
         serviceRunningInForeground = false
         configurationChange = false
@@ -90,7 +120,6 @@ class LocationService : Service() {
 
     @SuppressLint("ForegroundServiceType")
     override fun onUnbind(intent: Intent): Boolean {
-        Log.d(TAG, "onUnbind()")
         if (!configurationChange) {
             val notification = generateNotification(currentLocation)
             startForeground(NOTIFICATION_ID, notification)
@@ -100,7 +129,6 @@ class LocationService : Service() {
     }
 
     override fun onDestroy() {
-        Log.d(TAG, "onDestroy()")
         unsubscribeToLocationUpdates()
     }
 
@@ -111,7 +139,6 @@ class LocationService : Service() {
 
     // Inicia o serviço de localização em tempo real
     fun subscribeToLocationUpdates() {
-        Log.d(TAG, "subscribeToLocationUpdates()")
         startService(Intent(applicationContext, LocationService::class.java))
 
         try {
@@ -127,7 +154,6 @@ class LocationService : Service() {
 
     // Para as atualizações de localização
     fun unsubscribeToLocationUpdates() {
-        Log.d(TAG, "unsubscribeToLocationUpdates()")
         try {
             fusedLocationProviderClient.removeLocationUpdates(locationCallback)
         } catch (unlikely: SecurityException) {
@@ -137,7 +163,6 @@ class LocationService : Service() {
 
     // Gera uma notificação para exibir a localização em tempo real
     private fun generateNotification(location: Location?): Notification {
-        Log.d(TAG, "generateNotification()")
         val mainNotificationText = location?.toText() ?: getString(R.string.permission_denied_explanation)
         val titleText = getString(R.string.app_name)
 
@@ -152,17 +177,11 @@ class LocationService : Service() {
             .bigText(mainNotificationText)
             .setBigContentTitle(titleText)
 
-        val launchActivityIntent = Intent(this, MainActivity::class.java)
-        val activityPendingIntent = PendingIntent.getActivity(
-            this, 0, launchActivityIntent, PendingIntent.FLAG_UPDATE_CURRENT
-        )
 
-        val cancelIntent = Intent(this, LocationService::class.java).apply {
-            putExtra(EXTRA_CANCEL_LOCATION_TRACKING_FROM_NOTIFICATION, true)
-        }
-        val servicePendingIntent = PendingIntent.getService(
-            this, 0, cancelIntent, PendingIntent.FLAG_UPDATE_CURRENT
-        )
+
+
+
+
 
         return NotificationCompat.Builder(applicationContext, NOTIFICATION_CHANNEL_ID)
             .setStyle(bigTextStyle)
