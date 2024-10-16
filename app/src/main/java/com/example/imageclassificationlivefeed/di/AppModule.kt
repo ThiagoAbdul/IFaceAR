@@ -4,6 +4,7 @@ import com.example.facerecognitionimages.DB.DBHelper
 import com.example.imageclassificationlivefeed.data.repositories.ImageRepository
 import com.example.imageclassificationlivefeed.data.repositories.KnownPersonRepository
 import com.example.imageclassificationlivefeed.data.services.ChangeService
+import com.example.imageclassificationlivefeed.data.services.LocationService
 import com.example.imageclassificationlivefeed.data.services.PwadService
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
@@ -20,6 +21,7 @@ val appModule = module {
 
     singleOf(::PwadService)
     singleOf(::ChangeService)
+    singleOf(::LocationService)
 }
 
 val networkModule = module {

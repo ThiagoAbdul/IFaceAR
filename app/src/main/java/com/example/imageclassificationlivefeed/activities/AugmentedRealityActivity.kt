@@ -74,23 +74,6 @@ class AugmentedRealityActivity : AppCompatActivity(), OnImageAvailableListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-
-//        runBlocking {
-//            dataStore.data.collect{
-//                val pwadId = it[userIdKey]
-//                if(pwadId != null){
-//                    try{
-//                        val changes = changeService.getChangesAndApply(pwadId)
-//                        changeService.syncAllChanges(pwadId)
-//                        faceClassifier?.updateDataSource(dbHelper.allFaces)
-//                    }
-//                    catch (exception: Exception){
-//                        Log.d("ERRO", exception.message.toString())
-//                    }
-//                }
-//            }
-//        }
-
         CoroutineScope(Dispatchers.IO).launch {
             dataStore.data.collect {
                 pwadId = it[userIdKey]

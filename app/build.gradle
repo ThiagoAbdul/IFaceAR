@@ -2,7 +2,6 @@ plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.serialization' version '1.9.10'
-
 }
 
 android {
@@ -18,7 +17,9 @@ android {
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
-
+    buildscript {
+        ext.kotlin_version = "2.0.0-RC1"
+    }
     buildTypes {
         release {
             minifyEnabled false
@@ -32,31 +33,33 @@ android {
     kotlinOptions {
         jvmTarget = '1.8'
     }
-    aaptOptions {
-        noCompress "tflite"
+    androidResources {
+        noCompress 'tflite'
     }
+    buildToolsVersion '34.0.0'
 }
 
 dependencies {
-    implementation 'org.tensorflow:tensorflow-lite:+'
-    implementation 'com.google.mlkit:face-detection:16.1.5'
-    implementation 'androidx.core:core-ktx:1.12.0'
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'org.tensorflow:tensorflow-lite:2.16.1'
+    implementation 'com.google.mlkit:face-detection:16.1.7'
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation 'androidx.activity:activity:1.9.2'
+    implementation 'androidx.activity:activity-ktx:1.9.2'
+    implementation 'com.google.android.gms:play-services-location:21.3.0'
     testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
 
-    implementation "io.ktor:ktor-client-android:2.3.2"
-    implementation "io.ktor:ktor-client-logging:2.3.2"
-    implementation "io.ktor:ktor-client-content-negotiation:2.3.2"
-    implementation "io.ktor:ktor-serialization-kotlinx-json:2.3.2"
+    implementation 'io.ktor:ktor-client-android:3.0.0'
+    implementation 'io.ktor:ktor-client-logging:3.0.0'
+    implementation 'io.ktor:ktor-client-content-negotiation:3.0.0'
+    implementation 'io.ktor:ktor-serialization-kotlinx-json:3.0.0'
     implementation "org.slf4j:slf4j-android:1.7.36"
-    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0"
-
-    implementation "io.insert-koin:koin-android:3.5.0"
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-core:1.6.0'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:kotlin_version"
+    implementation 'io.insert-koin:koin-android:4.0.0'
 
     implementation "androidx.datastore:datastore-preferences:1.1.1"
 

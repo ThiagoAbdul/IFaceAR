@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">RealtimeFaceRecognition</string>
+    <string name="permission_denied_explanation">Permissão_Negada</string>
 </resources>

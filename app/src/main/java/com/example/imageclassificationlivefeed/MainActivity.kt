@@ -1,62 +1,31 @@
 package com.example.imageclassificationlivefeed
 
 import android.Manifest
-import android.app.Dialog
-import android.app.Fragment
+import android.content.ComponentName
+import android.content.ContentValues.TAG
+import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Matrix
-import android.graphics.Rect
-import android.graphics.RectF
-import android.graphics.Typeface
-import android.hardware.camera2.CameraAccessException
-import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraManager
-import android.media.Image.Plane
-import android.media.ImageReader
-import android.media.ImageReader.OnImageAvailableListener
-import android.os.Build
 import android.os.Bundle
-import android.os.Handler
+import android.os.IBinder
 import android.util.Log
-import android.util.Size
-import android.util.TypedValue
-import android.view.Surface
-import android.view.View
 import android.widget.Button
-import android.widget.EditText
-import android.widget.ImageView
-import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.example.facerecognitionimages.DB.DBHelper
-import com.example.facerecognitionimages.face_recognition.FaceClassifier
-import com.example.facerecognitionimages.face_recognition.TFLiteFaceRecognition
-import com.example.imageclassificationlivefeed.Drawing.MultiBoxTracker
 
-import com.example.imageclassificationlivefeed.ImageUtils.convertYUV420ToARGB8888
-import com.example.imageclassificationlivefeed.ImageUtils.getTransformationMatrix
 import com.example.imageclassificationlivefeed.activities.AugmentedRealityActivity
 import com.example.imageclassificationlivefeed.activities.RegisterDeviceActivity
-import com.example.imageclassificationlivefeed.data.services.ChangeService
-import com.example.objectdetectionlivefeed.Drawing.BorderedText
-import com.example.objectdetectionlivefeed.Drawing.OverlayView
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.face.Face
-import com.google.mlkit.vision.face.FaceDetection
-import com.google.mlkit.vision.face.FaceDetector
-import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.example.imageclassificationlivefeed.data.services.LocationService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
-import java.io.IOException
 
 val userIdKey = stringPreferencesKey("user_id")
 
@@ -64,22 +33,64 @@ class MainActivity : AppCompatActivity() {
 
 
     private val dbHelper:DBHelper by inject()
-    private val changeService: ChangeService by inject ()
+    private var serviceBound = false
+    private var isTracking = false
+    private var service: LocationService? = null
+    var pwadId: String? = null
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+        if (isGranted) {
+            // Permissão concedida, inicie a captura de localização
+            Log.d(TAG, "Location Permission Granted")
+            service?.subscribeToLocationUpdates()
+            isTracking = true // Atualiza o estado de rastreamento
+        } else {
+            // Permissão negada
+            //Snackbar.make(findViewById(R.id.activity_main), "Permissão de localização negada", Snackbar.LENGTH_SHORT).show()
+        }
+    }
+    private fun requestLocationPermission() {
+        requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
 
-        //TODO handling permissions
-        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED || checkSelfPermission(
-                Manifest.permission.WRITE_EXTERNAL_STORAGE
-            )
-            == PackageManager.PERMISSION_DENIED
-        ) {
-            val permission =
-                arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            requestPermissions(permission, 121)
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            val localBinder = binder as LocationService.LocalBinder
+            service = localBinder.service
+            service?.subscribeToLocationUpdates()
+            serviceBound = true
+
+            // Inicia automaticamente a captura de localização
+            if (!isTracking) {
+                service?.subscribeToLocationUpdates()
+                isTracking = true
+            }
         }
 
+        override fun onServiceDisconnected(name: ComponentName?) {
+            Log.d(TAG, "Service Disconnected")
+            serviceBound = false
+        }
+    }
+
+        override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        isTracking = true
+        requestLocationPermission()
+
+        //TODO handling permissions
+
+        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED || checkSelfPermission(
+                (Manifest.permission.WRITE_EXTERNAL_STORAGE)) == PackageManager.PERMISSION_DENIED ||
+                (checkSelfPermission (Manifest.permission.ACCESS_FINE_LOCATION)) == PackageManager.PERMISSION_DENIED||
+                (checkSelfPermission (Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_DENIED)
+        ) {
+            val permission =
+                arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION)
+            requestPermissions(permission, 121)
+        }
 
         val flow: Flow<String?> = dataStore.data.map {
             it[userIdKey]
@@ -99,16 +110,15 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.init).setOnClickListener {
             CoroutineScope(Dispatchers.IO).launch {
                 dataStore.data.collect{
-                    val pwadId = it[userIdKey]
+                    pwadId = it[userIdKey]
                     if(pwadId != null){
                         try{
-//                            val hasChanges = changeService.getChangesAndApply(pwadId)
-//                            if(hasChanges){
-//                                changeService.syncAllChanges(pwadId)
-//                            }
-//                            delay(500)
-                            startActivity(Intent(this@MainActivity, AugmentedRealityActivity::class.java))
-//                            faceClassifier?.updateDataSource(dbHelper.allFaces)
+
+                        val intent = Intent(this@MainActivity, LocationService::class.java)
+                        intent.putExtra("pwad", pwadId)
+                        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+                        startActivity(Intent(this@MainActivity, AugmentedRealityActivity::class.java))
+
                         }
                         catch (exception: Exception){
                             Log.d("ERRO", exception.message.toString())
@@ -128,7 +138,5 @@ class MainActivity : AppCompatActivity() {
         }
 
     }
-
-
 
 }
